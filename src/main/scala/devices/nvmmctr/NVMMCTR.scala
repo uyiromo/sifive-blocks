@@ -87,8 +87,9 @@ trait NVMMCTRIO extends Bundle
   val nvmm_begin = Output(UInt(b.W))
   val lat_cr     = Output(UInt(l.W))
   val lat_cw     = Output(UInt(l.W))
-  val lat_fr     = Output(UInt(l.W))
-  val lat_fw     = Output(UInt(l.W))
+  val lat_tRCD2  = Output(UInt(l.W))
+  val lat_tRP2   = Output(UInt(l.W))
+  val lat_tRAS2  = Output(UInt(11.W))
   val lat_dr256  = Output(UInt(l.W))
   val lat_dr4096 = Output(UInt(l.W))
   val lat_dw256  = Output(UInt(l.W))
@@ -317,6 +318,7 @@ class NVMMCTRModuleAX extends Module
     cnt_ax := cnt_ax - ONE_L
     ready_ax := cnt_ax === TWO_L
     busy_ax  := cnt_ax =/= TWO_L
+  //} .elsewhen (io.mig_axvalid & io.mig_axready) {
   } .otherwise {
     // deassert ready_ax
     ready_ax := FALSE
@@ -365,6 +367,7 @@ class NVMMCTRModule extends Module
   val aw = Module(new NVMMCTRModuleAX())
 
   // buffer for timing constraints
+  val nvmm_begin = Reg(UInt(b.W))
   val lat_cr     = Reg(UInt(l.W))
   val lat_cw     = Reg(UInt(l.W))
   val lat_dr256  = Reg(UInt(l.W))
@@ -377,7 +380,6 @@ class NVMMCTRModule extends Module
   val cnt_bdw    = Reg(UInt(w.W))
 
   /*
-  //val nvmm_begin = Wire(UInt(b.W))
   val lat_cr     = Wire(UInt(l.W))
   val lat_cw     = Wire(UInt(l.W))
   val lat_dr256  = Wire(UInt(l.W))
@@ -385,7 +387,7 @@ class NVMMCTRModule extends Module
   val lat_dw256  = Wire(UInt(l.W))
   val lat_dw4096 = Wire(UInt(l.W))
    */
-  //nvmm_begin   := io.nvmm_begin
+  nvmm_begin   := io.nvmm_begin
   lat_cr       := io.lat_cr
   lat_cw       := io.lat_cw
   lat_dr256    := io.lat_dr256
@@ -404,7 +406,7 @@ class NVMMCTRModule extends Module
   ar.io.mbus_axvalid := io.mbus_arvalid
   io.mbus_arready    := ar.io.mbus_axready
   //ar.io.mbus_axaddr  := io.mbus_araddr
-  ar.io.to_nvmm      := (io.mbus_araddr(31,29) >= io.nvmm_begin)
+  ar.io.to_nvmm      := (io.mbus_araddr(31,29) >= nvmm_begin)
   ar.io.mbus_axbank  := io.mbus_araddr(31,29)
   ar.io.mbus_axlow12 := io.mbus_araddr(11,0)
   io.mig_arvalid     := ar.io.mig_axvalid
@@ -421,7 +423,7 @@ class NVMMCTRModule extends Module
   aw.io.mbus_axvalid := io.mbus_awvalid
   io.mbus_awready    := aw.io.mbus_axready
   //aw.io.mbus_axaddr  := io.mbus_awaddr
-  aw.io.to_nvmm      := (io.mbus_awaddr(31,29) >= io.nvmm_begin)
+  aw.io.to_nvmm      := (io.mbus_awaddr(31,29) >= nvmm_begin)
   aw.io.mbus_axbank  := io.mbus_awaddr(31,29)
   aw.io.mbus_axlow12 := io.mbus_awaddr(11,0)
   io.mig_awvalid     := aw.io.mig_axvalid
@@ -468,8 +470,9 @@ trait NVMMCTR extends HasRegMap
   val nvmm_begin = RegInit(0.U(b.W))
   val lat_cr     = RegInit(0.U(l.W))
   val lat_cw     = RegInit(0.U(l.W))
-  val lat_fr     = RegInit(0.U(l.W))
-  val lat_fw     = RegInit(0.U(l.W))
+  val lat_tRCD2  = RegInit(0.U(l.W))
+  val lat_tRP2   = RegInit(0.U(l.W))
+  val lat_tRAS2  = RegInit(0.U(11.W))
   val lat_dr256  = RegInit(0.U(l.W))
   val lat_dr4096 = RegInit(0.U(l.W))
   val lat_dw256  = RegInit(0.U(l.W))
@@ -485,8 +488,9 @@ trait NVMMCTR extends HasRegMap
   io.nvmm_begin := nvmm_begin
   io.lat_cr     := lat_cr
   io.lat_cw     := lat_cw
-  io.lat_fr     := lat_fr
-  io.lat_fw     := lat_fw
+  io.lat_tRCD2  := lat_tRCD2
+  io.lat_tRP2   := lat_tRP2
+  io.lat_tRAS2  := lat_tRAS2
   io.lat_dr256  := lat_dr256
   io.lat_dr4096 := lat_dr4096
   io.lat_dw256  := lat_dw256
@@ -506,18 +510,19 @@ trait NVMMCTR extends HasRegMap
     0x08 -> Seq(RegField(b, nvmm_begin)),
     0x10 -> Seq(RegField(l, lat_cr)),
     0x18 -> Seq(RegField(l, lat_cw)),
-    0x20 -> Seq(RegField(l, lat_fr)),
-    0x28 -> Seq(RegField(l, lat_fw)),
-    0x30 -> Seq(RegField(l, lat_dr256)),
-    0x38 -> Seq(RegField(l, lat_dr4096)),
-    0x40 -> Seq(RegField(l, lat_dw256)),
-    0x48 -> Seq(RegField(l, lat_dw4096)),
-    0x50 -> Seq(RegField.r(w, cnt_read)),
-    0x58 -> Seq(RegField.r(w, cnt_write)),
-    0x60 -> Seq(RegField.r(w, cnt_act)),
-    //0x68 -> Seq(RegField.r(40, cnt_pre)),
-    0x70 -> Seq(RegField.r(w, cnt_bdr)),
-    0x78 -> Seq(RegField.r(w, cnt_bdw))
+    0x20 -> Seq(RegField(l, lat_tRCD2)),
+    0x28 -> Seq(RegField(l, lat_tRP2)),
+    0x30 -> Seq(RegField(l, lat_tRAS2)),
+    0x38 -> Seq(RegField(l, lat_dr256)),
+    0x40 -> Seq(RegField(l, lat_dr4096)),
+    0x48 -> Seq(RegField(l, lat_dw256)),
+    0x50 -> Seq(RegField(l, lat_dw4096)),
+    0x58 -> Seq(RegField.r(w, cnt_read)),
+    0x60 -> Seq(RegField.r(w, cnt_write)),
+    0x68 -> Seq(RegField.r(w, cnt_act)),
+    //0x70 -> Seq(RegField.r(w, cnt_pre)),
+    0x78 -> Seq(RegField.r(w, cnt_bdr)),
+    0x80 -> Seq(RegField.r(w, cnt_bdw))
   )
 }
 
